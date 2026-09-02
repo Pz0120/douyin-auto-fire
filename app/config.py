@@ -23,6 +23,19 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
     dingtalk_secret = _optional_env("DINGTALK_SECRET")
     if bool(dingtalk_webhook) != bool(dingtalk_secret):
         raise ConfigError("DINGTALK_WEBHOOK 和 DINGTALK_SECRET 必须同时配置")
+    # SMTP settings (all optional; if any is set, all required ones must be present)
+    smtp_server = _optional_env("SMTP_SERVER")
+    smtp_port_str = _optional_env("SMTP_PORT")
+    smtp_user = _optional_env("SMTP_USER")
+    smtp_pass = _optional_env("SMTP_PASS")
+    smtp_to = _optional_env("SMTP_TO")
+    smtp_fields = [smtp_server, smtp_port_str, smtp_user, smtp_pass]
+    smtp_provided = sum(1 for f in smtp_fields if f)
+    if smtp_provided not in (0, 4):
+        raise ConfigError(
+            "SMTP_SERVER、SMTP_PORT、SMTP_USER、SMTP_PASS 必须同时配置或同时不配置"
+        )
+    smtp_port = int(smtp_port_str) if smtp_port_str else None
     return Settings(
         task_config_path=task_path,
         storage_state=_optional_env("DOUYIN_STORAGE_STATE") or (str(default_state) if default_state.is_file() else None),
@@ -33,6 +46,11 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
         trace=_parse_bool(os.getenv("TRACE", "true"), "TRACE"),
         dingtalk_webhook=dingtalk_webhook,
         dingtalk_secret=dingtalk_secret,
+        smtp_server=smtp_server,
+        smtp_port=smtp_port,
+        smtp_user=smtp_user,
+        smtp_pass=smtp_pass,
+        smtp_to=smtp_to,
     )
 
 
