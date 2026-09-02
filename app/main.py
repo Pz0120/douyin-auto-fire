@@ -269,7 +269,11 @@ async def _notify_email(
     results: list[TargetResult],
     screenshots: list[Path],
 ) -> None:
+    LOGGER.info("邮件设置检查: server=%s port=%s user=%s pass=%s",
+                bool(settings.smtp_server), bool(settings.smtp_port),
+                bool(settings.smtp_user), bool(settings.smtp_pass))
     if not settings.smtp_server or not settings.smtp_port or not settings.smtp_user or not settings.smtp_pass:
+        LOGGER.info("邮件通知未启用（SMTP 未完整配置）")
         return
     recipient = settings.smtp_to or settings.smtp_user
     try:
