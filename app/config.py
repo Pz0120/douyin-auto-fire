@@ -238,7 +238,13 @@ def _non_empty_string(value: Any, label: str) -> str:
 
 
 def _optional_string(value: Any) -> str | None:
-    return value.strip() if isinstance(value, str) and value.strip() else None
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    # GitHub Actions masks secrets as "***" in logs; treat it as unset
+    if not stripped or stripped == "***":
+        return None
+    return stripped
 
 
 def _optional_env(name: str) -> str | None:
