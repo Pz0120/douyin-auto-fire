@@ -68,12 +68,17 @@ def _send_email(
     body_html: str,
     body_text: str,
 ) -> None:
-    msg = MIMEMultipart("alternative")
+    # 使用 multipart/mixed 作为最外层，兼容性最好
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
     msg["From"] = sender_email
     msg["To"] = recipient_email
-    msg.attach(MIMEText(body_text, "plain", "utf-8"))
-    msg.attach(MIMEText(body_html, "html", "utf-8"))
+
+    # 正文部分使用 multipart/alternative 嵌套
+    body_part = MIMEMultipart("alternative")
+    body_part.attach(MIMEText(body_text, "plain", "utf-8"))
+    body_part.attach(MIMEText(body_html, "html", "utf-8"))
+    msg.attach(body_part)
 
     if smtp_port == 465:
         server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
@@ -86,7 +91,7 @@ def _send_email(
 
     with server:
         server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient_email, msg.as_string())
+        server.sendmail(sender_email, [recipient_email], msg.as_string())
 
 
 def _build_email_content(
