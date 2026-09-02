@@ -116,7 +116,7 @@ jobs:
               smtp_user = os.environ.get("SMTP_USER", "")
               smtp_pass = os.environ.get("SMTP_PASS", "")
               smtp_to = os.environ.get("SMTP_TO", "")
-              if smtp_server and smtp_port and smtp_user and smtp_pass:
+              if smtp_server and smtp_port and smtp_pass:
                   with open(env_file, "a", encoding="utf-8") as f:
                       f.write(f"SMTP_SERVER={smtp_server}\n")
                       f.write(f"SMTP_PORT={smtp_port}\n")
@@ -129,6 +129,21 @@ jobs:
               encoding="utf-8",
           )
           PY
+      - name: Debug SMTP environment
+        shell: bash
+        run: |
+          echo "=== SMTP Environment Variables ==="
+          echo "SMTP_SERVER=[${SMTP_SERVER}]"
+          echo "SMTP_PORT=[${SMTP_PORT}]"
+          echo "SMTP_USER=[${SMTP_USER}]"
+          echo "SMTP_PASS set: $([ -n "$SMTP_PASS" ] && echo yes || echo no)"
+          echo "SMTP_TO=[${SMTP_TO}]"
+          echo ""
+          echo "=== Running debug script ==="
+          python debug_env.py
+          echo ""
+          echo "=== Debug result file ==="
+          cat debug_env_result.txt 2>/dev/null || echo "File not found"
       - name: Run
         shell: bash
         run: |
@@ -138,9 +153,11 @@ jobs:
             python run.py
           fi
       - name: Upload diagnostics
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: douyin-failure-${{ github.run_id }}
-          path: artifacts/
+          name: douyin-debug-${{ github.run_id }}
+          path: |
+            artifacts/
+            debug_env_result.txt
           retention-days: 3
