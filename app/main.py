@@ -191,7 +191,6 @@ def _configure_logging(
         LOGGER.addHandler(file_handler)
         LOGGER.addHandler(stream_handler)
         return
-    # 已有 handler（多账号模式下 run() 内部会再次调用）：只更新脱敏别名。
     for handler in LOGGER.handlers:
         if isinstance(handler.formatter, RedactingFormatter):
             handler.formatter.aliases = dict(aliases or {})
@@ -269,11 +268,10 @@ async def _notify_email(
     results: list[TargetResult],
     screenshots: list[Path],
 ) -> None:
-    LOGGER.info("邮件设置检查: server=%s port=%s user=%s pass=%s",
-                bool(settings.smtp_server), bool(settings.smtp_port),
-                bool(settings.smtp_user), bool(settings.smtp_pass))
+    LOGGER.info("邮件设置: server=%s port=%s user=%s",
+                bool(settings.smtp_server), bool(settings.smtp_port), bool(settings.smtp_user))
     if not settings.smtp_server or not settings.smtp_port or not settings.smtp_user or not settings.smtp_pass:
-        LOGGER.info("邮件通知未启用（SMTP 未完整配置）")
+        LOGGER.info("邮件通知跳过: SMTP 未完整配置")
         return
     recipient = settings.smtp_to or settings.smtp_user
     try:
@@ -289,8 +287,8 @@ async def _notify_email(
             screenshots,
         )
         LOGGER.info("邮件通知发送成功")
-    except Exception:
-        LOGGER.exception("邮件通知发送失败，不影响本次任务结果")
+    except Exception as e:
+        LOGGER.error("邮件通知发送失败: %s", e, exc_info=True)
 
 
 def _trace_path(artifacts_dir: Path) -> Path:
