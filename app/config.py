@@ -35,7 +35,13 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
         raise ConfigError(
             "SMTP_SERVER、SMTP_PORT、SMTP_USER、SMTP_PASS 必须同时配置或同时不配置"
         )
-    smtp_port = int(smtp_port_str) if smtp_port_str else None
+    # Parse SMTP port: treat non-numeric (e.g. GitHub masked "***") as None
+    smtp_port = None
+    if smtp_port_str:
+        try:
+            smtp_port = int(smtp_port_str)
+        except (ValueError, TypeError):
+            smtp_port = None
     return Settings(
         task_config_path=task_path,
         storage_state=_optional_env("DOUYIN_STORAGE_STATE") or (str(default_state) if default_state.is_file() else None),
