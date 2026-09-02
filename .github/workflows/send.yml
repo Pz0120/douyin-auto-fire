@@ -79,8 +79,6 @@ jobs:
           accounts = []
           for index in range(1, 6):
               if index == 1 and not os.environ.get("COOKIE_1") and not os.environ.get("CONFIG_1"):
-                  # 没有配置 DOUYIN_COOKIE_ACCOUNT1 时，旧 DOUYIN_COOKIE /
-                  # DOUYIN_CONFIG 自动作为账号1，方便老用户无缝添加新账号。
                   cookie = os.environ.get("LEGACY_COOKIE")
                   config = os.environ.get("LEGACY_CONFIG")
               else:
@@ -93,7 +91,6 @@ jobs:
                       f"账号 account{index} 的 DOUYIN_COOKIE_ACCOUNT{index} 与 "
                       f"DOUYIN_CONFIG_ACCOUNT{index} 必须同时配置"
                   )
-              # 提前校验，出错时直接指出是哪个 Secret，避免任务执行中才暴露
               try:
                   json.loads(cookie)
               except json.JSONDecodeError as exc:
@@ -103,14 +100,11 @@ jobs:
               except json.JSONDecodeError as exc:
                   raise SystemExit(f"DOUYIN_CONFIG_ACCOUNT{index} 不是有效 JSON: {exc}") from exc
               env_file = f".env.account{index}"
-              # Cookie 用 JSON 字符串转义后写入，dotenv 可原样解析，
-              # 兼容多组 Cookie JSON 和 # 等特殊字符
               Path(env_file).write_text(
                   f"DOUYIN_COOKIE={json.dumps(cookie)}\nTASK_CONFIG=config/tasks/account{index}.json\n",
                   encoding="utf-8",
               )
               Path(f"config/tasks/account{index}.json").write_text(config, encoding="utf-8")
-              # 写入每个账号的 SMTP 配置（如果配置了的话）
               smtp_server = os.environ.get("SMTP_SERVER", "")
               smtp_port = os.environ.get("SMTP_PORT", "")
               smtp_user = os.environ.get("SMTP_USER", "")
@@ -129,21 +123,6 @@ jobs:
               encoding="utf-8",
           )
           PY
-      - name: Debug SMTP environment
-        shell: bash
-        run: |
-          echo "=== SMTP Environment Variables ==="
-          echo "SMTP_SERVER=[${SMTP_SERVER}]"
-          echo "SMTP_PORT=[${SMTP_PORT}]"
-          echo "SMTP_USER=[${SMTP_USER}]"
-          echo "SMTP_PASS set: $([ -n "$SMTP_PASS" ] && echo yes || echo no)"
-          echo "SMTP_TO=[${SMTP_TO}]"
-          echo ""
-          echo "=== Running debug script ==="
-          python debug_env.py
-          echo ""
-          echo "=== Debug result file ==="
-          cat debug_env_result.txt 2>/dev/null || echo "File not found"
       - name: Run
         shell: bash
         run: |
@@ -153,11 +132,9 @@ jobs:
             python run.py
           fi
       - name: Upload diagnostics
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: douyin-debug-${{ github.run_id }}
-          path: |
-            artifacts/
-            debug_env_result.txt
+          name: douyin-failure-${{ github.run_id }}
+          path: artifacts/
           retention-days: 3
