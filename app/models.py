@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-
 MessageType = Literal["text", "image", "douyin_sticker", "random"]
 
 
@@ -56,6 +55,12 @@ class Settings:
     trace: bool
     dingtalk_webhook: str | None = None
     dingtalk_secret: str | None = None
+    # SMTP email notification settings
+    smtp_server: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_pass: str | None = None
+    smtp_to: str | None = None
 
 
 @dataclass(frozen=True)
