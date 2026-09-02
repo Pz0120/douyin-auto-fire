@@ -14,6 +14,7 @@ from pathlib import Path
 from app.browser import AuthenticationError, RiskControlError, SearchBoxNotReadyError, open_douyin, open_private_messages, save_trace, verify_login
 from app.config import ConfigError, load_settings, load_task
 from app.douyin import DouyinChat
+from app.email_notifier import send_email_notification
 from app.history import AlreadyRunningError, History, run_lock
 from app.models import Settings, TargetResult
 from app.notifier import send_dingtalk_notification
@@ -135,6 +136,7 @@ async def run(dry_run: bool = False, env_file: str | None = None) -> int:
 
     _write_results(settings.artifacts_dir, task.task_id, dry_run, results, aliases)
     await _notify_dingtalk(settings, task.task_id, dry_run, results, screenshots)
+    await _notify_email(settings, task.task_id, dry_run, results, screenshots)
     succeeded = sum(result.status == "success" for result in results)
     failed = sum(result.status == "failed" for result in results)
     LOGGER.info("执行结束: 成功 %d，失败 %d", succeeded, failed)
@@ -258,6 +260,33 @@ async def _notify_dingtalk(
         LOGGER.info("钉钉通知发送成功")
     except Exception:
         LOGGER.exception("钉钉通知发送失败，不影响本次任务结果")
+
+
+async def _notify_email(
+    settings: Settings,
+    task_id: str,
+    dry_run: bool,
+    results: list[TargetResult],
+    screenshots: list[Path],
+) -> None:
+    if not settings.smtp_server or not settings.smtp_port or not settings.smtp_user or not settings.smtp_pass:
+        return
+    recipient = settings.smtp_to or settings.smtp_user
+    try:
+        await send_email_notification(
+            settings.smtp_server,
+            settings.smtp_port,
+            settings.smtp_user,
+            settings.smtp_pass,
+            recipient,
+            task_id,
+            dry_run,
+            results,
+            screenshots,
+        )
+        LOGGER.info("邮件通知发送成功")
+    except Exception:
+        LOGGER.exception("邮件通知发送失败，不影响本次任务结果")
 
 
 def _trace_path(artifacts_dir: Path) -> Path:
