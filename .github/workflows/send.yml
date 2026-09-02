@@ -26,10 +26,16 @@ jobs:
       DOUYIN_CONFIG: ${{ secrets.DOUYIN_CONFIG }}
       DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
       DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+      # SMTP 邮件通知（可选，全部配置后生效）
+      SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      SMTP_TO: ${{ secrets.SMTP_TO }}
       HEADLESS: "true"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
@@ -52,6 +58,11 @@ jobs:
           CONFIG_5: ${{ secrets.DOUYIN_CONFIG_ACCOUNT5 }}
           LEGACY_COOKIE: ${{ secrets.DOUYIN_COOKIE }}
           LEGACY_CONFIG: ${{ secrets.DOUYIN_CONFIG }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
         run: |
           mkdir -p config/tasks
           python - <<'PY'
@@ -61,15 +72,15 @@ jobs:
 
           if not any(os.environ.get(f"COOKIE_{i}") for i in range(1, 6)):
               # 没有配置任何多账号 Secret（DOUYIN_COOKIE_ACCOUNTn）：
-              # 保持旧单账号模式，不生成 accounts.json。
+              # 保持旧单账号模式，不用生成 accounts.json。
               print("未配置多账号 Secret，继续使用旧单账号模式")
               raise SystemExit(0)
 
           accounts = []
           for index in range(1, 6):
               if index == 1 and not os.environ.get("COOKIE_1") and not os.environ.get("CONFIG_1"):
-                  # 没有配置 DOUYIN_COOKIE_ACCOUNT1 时，旧版 DOUYIN_COOKIE /
-                  # DOUYIN_CONFIG 自动作为账号1，方便老用户直接追加新账号。
+                  # 没有配置 DOUYIN_COOKIE_ACCOUNT1 时，旧 DOUYIN_COOKIE /
+                  # DOUYIN_CONFIG 自动作为账号1，方便老用户无缝添加新账号。
                   cookie = os.environ.get("LEGACY_COOKIE")
                   config = os.environ.get("LEGACY_CONFIG")
               else:
@@ -82,7 +93,7 @@ jobs:
                       f"账号 account{index} 的 DOUYIN_COOKIE_ACCOUNT{index} 与 "
                       f"DOUYIN_CONFIG_ACCOUNT{index} 必须同时配置"
                   )
-              # 提前校验，出错时直接指出是哪个 Secret，避免任务执行时才报错
+              # 提前校验，出错时直接指出是哪个 Secret，避免任务执行中才暴露
               try:
                   json.loads(cookie)
               except json.JSONDecodeError as exc:
@@ -92,13 +103,26 @@ jobs:
               except json.JSONDecodeError as exc:
                   raise SystemExit(f"DOUYIN_CONFIG_ACCOUNT{index} 不是有效 JSON: {exc}") from exc
               env_file = f".env.account{index}"
-              # Cookie 用 JSON 字符串转义后写入，dotenv 可精确还原，
-              # 兼容多行 Cookie JSON 与 # 等特殊字符
+              # Cookie 用 JSON 字符串转义后写入，dotenv 可原样解析，
+              # 兼容多组 Cookie JSON 和 # 等特殊字符
               Path(env_file).write_text(
                   f"DOUYIN_COOKIE={json.dumps(cookie)}\nTASK_CONFIG=config/tasks/account{index}.json\n",
                   encoding="utf-8",
               )
               Path(f"config/tasks/account{index}.json").write_text(config, encoding="utf-8")
+              # 写入每个账号的 SMTP 配置（如果配置了的话）
+              smtp_server = os.environ.get("SMTP_SERVER", "")
+              smtp_port = os.environ.get("SMTP_PORT", "")
+              smtp_user = os.environ.get("SMTP_USER", "")
+              smtp_pass = os.environ.get("SMTP_PASS", "")
+              smtp_to = os.environ.get("SMTP_TO", "")
+              if smtp_server and smtp_port and smtp_user and smtp_pass:
+                  with open(env_file, "a", encoding="utf-8") as f:
+                      f.write(f"SMTP_SERVER={smtp_server}\n")
+                      f.write(f"SMTP_PORT={smtp_port}\n")
+                      f.write(f"SMTP_USER={smtp_user}\n")
+                      f.write(f"SMTP_PASS={smtp_pass}\n")
+                      f.write(f"SMTP_TO={smtp_to}\n")
               accounts.append({"id": f"account{index}", "enabled": True, "env_file": env_file})
           Path("config/accounts.json").write_text(
               json.dumps({"accounts": accounts}, ensure_ascii=False, indent=2),
